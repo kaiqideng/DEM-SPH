@@ -27,10 +27,6 @@ __global__ void setSolid2SolidInteractionsKernel(interactionSolid2Solid solid2So
 
 void neighborSearch(DeviceData& d, int maxThreadsPerBlock);
 
-__global__ void setBondKernel(interactionBonded solidBond2Solid, interactionSolid2Solid solid2Solid, solidContactModel contactModels, solid s);
-
-void setBond(DeviceData& d, int maxThreadsPerBlock);
-
 inline void computeGPUParameter(int& gridSize, int& blockSize,
     int nElements,
     int maxThreadsPerBlock)

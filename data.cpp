@@ -38,14 +38,9 @@ void data::addSolid(std::vector<double3> p, double3 velocity, double radius, dou
     addSolidData(s);
 }
 
-void data::addCluster(std::vector<double3> p, std::vector<double3> velocity, std::vector<double> radius, std::vector<double> density, int materialID)
+void data::addCluster(std::vector<double3> p, std::vector<double> radius, std::vector<double> density, double3 velocity, int materialID)
 {
-	if (getStep() > 0)
-	{
-		std::cout << "Error: clusters can only be added before the simulation starts." << std::endl;
-		return;
-	}
-	if (p.size() != velocity.size() || p.size() != radius.size() || p.size() != density.size())
+	if (p.size() != radius.size() || p.size() != density.size())
 	{
 		std::cout << "Error: the size of position, velocity, and radius vectors must be the same when adding a cluster." << std::endl;
 		return;
@@ -57,14 +52,14 @@ void data::addCluster(std::vector<double3> p, std::vector<double3> velocity, std
 	}
 
     int clusterID = 0;
-    if (hos.solids.points.num > 0) clusterID = hos.solids.clusterID.back() + 1;
+    if (hos.solids.points.num > 0) clusterID = *std::max_element(hos.solids.clusterID.begin(), hos.solids.clusterID.end()) + 1;
     HostSolid s(int(p.size()));
     for (size_t i = 0; i < p.size();i++)
     {
         s.points.position[i] = p[i];
 		double physicalRadius = radius[i];
         s.points.effectiveRadii[i] = 1.1 * physicalRadius;
-        s.dyn.velocities[i] = velocity[i];
+        s.dyn.velocities[i] = velocity;
         s.radius[i] = physicalRadius;
         s.materialID[i] = materialID;
         s.clusterID[i] = clusterID;
@@ -72,15 +67,15 @@ void data::addCluster(std::vector<double3> p, std::vector<double3> velocity, std
     }
 
     addSolidData(s);
+    if (getStep() > 0)
+    {
+		neighborSearch(dev, gpuPara.maxThreadsPerBlock);
+        addBondData();
+    }
 }
 
 void data::addClump(std::vector<double3> p, std::vector<double> radius, double3 centroidPosition, double3 velocity, double mass, symMatrix inertiaTensor, int materialID)
 {
-	if (getStep() > 0)
-	{
-		std::cout << "Error: clumps can only be added before the simulation starts." << std::endl;
-		return;
-	}
 	if (p.size() != radius.size())
 	{
 		std::cout << "Error: the size of position and radius vectors must be the same when adding a clump." << std::endl;
@@ -88,7 +83,7 @@ void data::addClump(std::vector<double3> p, std::vector<double> radius, double3 
 	}
     if (materialID >= hos.contactModels.nMaterial)
     {
-        std::cout << "Error: material index exceeds the number of materials when adding a cluster." << std::endl;
+        std::cout << "Error: material index exceeds the number of materials when adding a clump." << std::endl;
         return;
     }
 
@@ -118,13 +113,23 @@ void data::addClump(std::vector<double3> p, std::vector<double> radius, double3 
 		s.radius[i] = physicalRadius;
 		s.materialID[i] = materialID;
 		s.clumpID[i] = clumpID;
-		if (density > 0) s.inverseMass[i] = 1. / (4. / 3. * pow(physicalRadius, 3) * pi() * density);
+        if (density > 0 && physicalRadius > 0) s.inverseMass[i] = 1. / (4. / 3. * pow(physicalRadius, 3) * pi() * density);
+        else if (mass > 0) s.inverseMass[i] = double(p.size()) / mass;
 	}
 
 	addSolidData(s);
-
-    c.pebbleEndIndex[0] = hos.solids.points.num;
-    hos.clumps.insertData(c);
+    if (getStep() > 0)
+    {
+		dev.clumps.uploadState(hos.clumps);
+        c.pebbleEndIndex[0] = hos.solids.points.num;
+        hos.clumps.insertData(c);
+		dev.clumps.copy(hos.clumps);
+    }
+    else
+    {
+        c.pebbleEndIndex[0] = hos.solids.points.num;
+        hos.clumps.insertData(c);
+    }
 }
 
 void data::addExternalForce(int index, double3 force)
@@ -187,6 +192,7 @@ void data::addFluidData(const HostFluid f)
         dev.fluid2Solid.upload(hos.fluid2Solid);
         hos.fluid2Solid.insertData(HostInteractionBase(40 * f.points.num));
         dev.fluid2Solid.copy(hos.fluid2Solid);
+        setSpatialGrids();
     }
     else
     {
@@ -206,11 +212,88 @@ void data::addSolidData(const HostSolid s)
 		dev.solid2Solid.upload(hos.solid2Solid);
 		hos.solid2Solid.insertData(HostInteractionSolid2Solid(6 * s.points.num));
 		dev.solid2Solid.copy(hos.solid2Solid);
+        setSpatialGrids();
     }
     else
     {
         hos.solids.insertData(s);
 		hos.solid2Solid.insertData(HostInteractionSolid2Solid(6 * s.points.num));
+    }
+}
+
+void data::addBondData()
+{
+    if (dev.solid2Solid.num > 0)
+    {
+        dev.solid2Solid.upload(hos.solid2Solid);
+        if (simPara.iStep == 0)
+        {
+            for (int k = 0; k < hos.solid2Solid.num; k++)
+            {
+                int idx_i = hos.solid2Solid.objectPointed[k];
+                int idx_j = hos.solid2Solid.objectPointing[k];
+                double3 pos_i = hos.solids.points.position[idx_i];
+                double3 pos_j = hos.solids.points.position[idx_j];
+                double rad_i = hos.solids.radius[idx_i];
+                double rad_j = hos.solids.radius[idx_j];
+                int mat_i = hos.solids.materialID[idx_i];
+                int mat_j = hos.solids.materialID[idx_j];
+                int cluster_i = hos.solids.clusterID[idx_i];
+                int cluster_j = hos.solids.clusterID[idx_j];
+                int c_ij = hos.contactModels.getCombinedIndex(mat_i, mat_j);
+                double E_b = hos.contactModels.bonded.E[c_ij];
+                if (E_b > 1.e-10 && cluster_i >= 0 && cluster_i == cluster_j)
+                {
+                    double d = length(pos_i - pos_j);
+                    double3 n_ij = (pos_i - pos_j) / d;
+                    double delta = rad_i + rad_j - d;
+                    double3 r_c = pos_j + (rad_j - 0.5 * delta) * n_ij;
+                    HostInteractionBonded bond(1);
+                    bond.contactNormal[0] = n_ij;
+                    bond.contactPoint[0] = r_c;
+                    bond.objectPointed[0] = idx_i;
+                    bond.objectPointing[0] = idx_j;
+                    bond.isBonded[0] = 1;
+                    hos.solidBond2Solid.insertData(bond);
+                }
+            }
+            dev.solidBond2Solid.copy(hos.solidBond2Solid);
+        }
+        else
+        {
+            dev.solidBond2Solid.upload(hos.solidBond2Solid);
+            for (int k = 0; k < hos.solid2Solid.num; k++)
+            {
+                int idx_i = hos.solid2Solid.objectPointed[k];
+                if (idx_i <= hos.solidBond2Solid.objectPointed.back()) continue;
+                int idx_j = hos.solid2Solid.objectPointing[k];
+                double3 pos_i = hos.solids.points.position[idx_i];
+                double3 pos_j = hos.solids.points.position[idx_j];
+                double rad_i = hos.solids.radius[idx_i];
+                double rad_j = hos.solids.radius[idx_j];
+                int mat_i = hos.solids.materialID[idx_i];
+                int mat_j = hos.solids.materialID[idx_j];
+                int cluster_i = hos.solids.clusterID[idx_i];
+                int cluster_j = hos.solids.clusterID[idx_j];
+                int c_ij = hos.contactModels.getCombinedIndex(mat_i, mat_j);
+                double E_b = hos.contactModels.bonded.E[c_ij];
+                if (E_b > 1.e-10 && cluster_i >= 0 && cluster_i == cluster_j)
+                {
+                    double d = length(pos_i - pos_j);
+                    double3 n_ij = (pos_i - pos_j) / d;
+                    double delta = rad_i + rad_j - d;
+                    double3 r_c = pos_j + (rad_j - 0.5 * delta) * n_ij;
+                    HostInteractionBonded bond(1);
+                    bond.contactNormal[0] = n_ij;
+                    bond.contactPoint[0] = r_c;
+                    bond.objectPointed[0] = idx_i;
+                    bond.objectPointing[0] = idx_j;
+                    bond.isBonded[0] = 1;
+                    hos.solidBond2Solid.insertData(bond);
+                }
+            }
+            dev.solidBond2Solid.copy(hos.solidBond2Solid);
+        }
     }
 }
 
@@ -236,15 +319,15 @@ void data::setSpatialGrids()
 void data::buildDeviceData()
 {
     dev.release();
-
     setSpatialGrids();
     dev.gravity = gravity;
-
     dev.fluids.copy(hos.fluids);
     dev.solids.copy(hos.solids);
+	dev.clumps.copy(hos.clumps);
     dev.fluid2Fluid.copy(hos.fluid2Fluid);
     dev.fluid2Solid.copy(hos.fluid2Solid);
 	dev.solid2Solid.copy(hos.solid2Solid);
+	//dev.solidBond2Solid.copy(hos.solidBond2Solid);
 	dev.contactModels.copy(hos.contactModels);
 }
 

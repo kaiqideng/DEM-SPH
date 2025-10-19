@@ -53,16 +53,39 @@ protected:
 
     void setSimulationParameterMaximumTime(double t)
     {
+        if (simPara.iStep > 0)
+        {
+            std::cout << "Warning: cannot change the number of frames during simulation." << std::endl;
+            return;
+        }
         simPara.maximumTime = t;
     }
 
     void setSimulationParameterTimeStep(double dt)
     {
+		if (simPara.iStep > 0)
+		{
+            double t = getTime();
+            simPara.iStep = int(t / dt) + 1;
+            simPara.numSteps = int(simPara.maximumTime / dt) + 1;
+            simPara.frameInterval = (simPara.numSteps - simPara.iStep) / (simPara.numFrames - simPara.iFrame);
+            if (simPara.frameInterval < 1) simPara.frameInterval = 1;
+		}
         simPara.timeStep = dt;
     }
 
     void setSimulationParameterNumFrames(int n)
     {
+		if (n < 1)
+		{
+			std::cout << "Error: number of frames must be at least 1." << std::endl;
+			return;
+		}
+        if (simPara.iStep > 0)
+        {
+			std::cout << "Warning: cannot change the number of frames during simulation." << std::endl;
+			return;
+        }
         simPara.numFrames = n;
     }
 
@@ -70,13 +93,13 @@ protected:
     {
         domainOrigin = origin;
         domainSize = size;
-        if (simPara.iStep > 1) setSpatialGrids();
+        if (simPara.iStep > 0) setSpatialGrids();
     }
 
     void setGravity(double3 g)
     {
         gravity = g;
-        if (simPara.iStep > 1) dev.gravity = gravity;
+        if (simPara.iStep > 0) dev.gravity = gravity;
     }
 
     void setHertzianContactModel(size_t mat_i, size_t mat_j, double E, double G, double res, double k_r_k_s, double k_t_k_s, double mu_s, double mu_r, double mu_t)
@@ -95,6 +118,7 @@ protected:
 		hos.contactModels.hertzian.mu_s[c_ij] = mu_s;
 		hos.contactModels.hertzian.mu_r[c_ij] = mu_r;
 		hos.contactModels.hertzian.mu_t[c_ij] = mu_t;
+		if (simPara.iStep > 0) dev.contactModels.copy(hos.contactModels);
     }
 
 	void setLinearContactModel(size_t mat_i, size_t mat_j, double k_n, double k_s, double k_r, double k_t, double d_n, double d_s, double d_r, double d_t, double mu_s, double mu_r, double mu_t)
@@ -116,6 +140,7 @@ protected:
 		hos.contactModels.linear.mu_s[c_ij] = mu_s;
 		hos.contactModels.linear.mu_r[c_ij] = mu_r;
 		hos.contactModels.linear.mu_t[c_ij] = mu_t;
+        if (simPara.iStep > 0) dev.contactModels.copy(hos.contactModels);
 	}
 
 	void setBondedContactModel(size_t mat_i, size_t mat_j, double E, double k_n_k_s, double gamma, double sigma_s, double C, double mu)
@@ -132,13 +157,14 @@ protected:
 		hos.contactModels.bonded.sigma_s[c_ij] = sigma_s;
 		hos.contactModels.bonded.C[c_ij] = C;
 		hos.contactModels.bonded.mu[c_ij] = mu;
+		if (simPara.iStep > 0) dev.contactModels.copy(hos.contactModels);
 	}
 
     void addFluid(std::vector<double3> p, double3 velocity, double smoothLength, double density, double soundSpeed, double kinematicViscosity);
 
     void addSolid(std::vector<double3> p, double3 velocity, double radius, double density, int materialID);
 
-	void addCluster(std::vector<double3> p, std::vector<double3> velocity, std::vector<double> radius, std::vector<double> density, int materialID);
+	void addCluster(std::vector<double3> p, std::vector<double> radius, std::vector<double> density, double3 velocity, int materialID);
 
     void addClump(std::vector<double3> p, std::vector<double> radius, double3 centroidPosition, double3 velocity, double mass, symMatrix inertiaTensor, int materialID);
 
@@ -161,6 +187,19 @@ protected:
 		return simPara.iFrame;
 	}
 
+	const HostData& getHostData()
+	{ 
+        if (getStep() < 1) return hos;
+		dev.fluids.uploadState(hos.fluids);
+		dev.solids.uploadState(hos.solids);
+		dev.clumps.uploadState(hos.clumps);
+		dev.fluid2Fluid.upload(hos.fluid2Fluid);
+		dev.fluid2Solid.upload(hos.fluid2Solid);
+		dev.solid2Solid.upload(hos.solid2Solid);
+		dev.solidBond2Solid.upload(hos.solidBond2Solid);
+		return hos;
+	}
+
 private:
     HostData hos;
     DeviceData dev;
@@ -173,6 +212,8 @@ private:
     void addFluidData(const HostFluid f);
 
     void addSolidData(const HostSolid s);
+
+    void addBondData();
 
     void setSpatialGrids();
 

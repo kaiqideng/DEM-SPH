@@ -345,6 +345,16 @@ struct clump
 		cuda_copy(pebbleStartIndex, c.pebbleStartIndex.data(), nCopy, CopyDir::H2D);
 		cuda_copy(pebbleEndIndex, c.pebbleEndIndex.data(), nCopy, CopyDir::H2D);
 	}
+
+	void uploadState(HostClump& c) const
+	{
+		int nUpload = num;
+		dyn.upload(nUpload, c.dyn);
+		cuda_copy(c.centroidPosition.data(), centroidPosition, nUpload, CopyDir::D2H);
+		cuda_copy(c.torques.data(), torques, nUpload, CopyDir::D2H);
+		cuda_copy(c.angularVelocities.data(), angularVelocities, nUpload, CopyDir::D2H);
+		cuda_copy(c.orientations.data(), orientations, nUpload, CopyDir::D2H);
+	}
 };
 
 struct interactionBase
@@ -584,7 +594,6 @@ struct interactionBonded
 
 	void alloc(int n)
 	{
-		num = n;
 		CUDA_ALLOC(contactNormal, n, InitMode::ZERO);
 		CUDA_ALLOC(contactPoint, n, InitMode::ZERO);
 		CUDA_ALLOC(shearForce, n, InitMode::ZERO);
@@ -608,6 +617,42 @@ struct interactionBonded
 		CUDA_FREE(objectPointed);
 		CUDA_FREE(objectPointing);
 		CUDA_FREE(isBonded);
+	}
+
+	void copy(const HostInteractionBonded& i)
+	{
+		release();
+		int nCopy = i.num;
+		alloc(nCopy);
+		cuda_copy(contactNormal, i.contactNormal.data(), nCopy, CopyDir::H2D);
+		cuda_copy(contactPoint, i.contactPoint.data(), nCopy, CopyDir::H2D);
+		cuda_copy(shearForce, i.shearForce.data(), nCopy, CopyDir::H2D);
+		cuda_copy(bendingTorque, i.bendingTorque.data(), nCopy, CopyDir::H2D);
+		cuda_copy(normalForce, i.normalForce.data(), nCopy, CopyDir::H2D);
+		cuda_copy(torsionTorque, i.torsionTorque.data(), nCopy, CopyDir::H2D);
+		cuda_copy(objectPointed, i.objectPointed.data(), nCopy, CopyDir::H2D);
+		cuda_copy(objectPointing, i.objectPointing.data(), nCopy, CopyDir::H2D);
+		cuda_copy(isBonded, i.isBonded.data(), nCopy, CopyDir::H2D);
+		num = i.num;
+	}
+
+	void upload(HostInteractionBonded& i) const
+	{
+		int nUpload = num;
+		if (nUpload > i.num)
+		{
+			i = HostInteractionBonded(nUpload);
+		}
+		cuda_copy(i.contactNormal.data(), contactNormal, nUpload, CopyDir::D2H);
+		cuda_copy(i.contactPoint.data(), contactPoint, nUpload, CopyDir::D2H);
+		cuda_copy(i.shearForce.data(), shearForce, nUpload, CopyDir::D2H);
+		cuda_copy(i.bendingTorque.data(), bendingTorque, nUpload, CopyDir::D2H);
+		cuda_copy(i.normalForce.data(), normalForce, nUpload, CopyDir::D2H);
+		cuda_copy(i.torsionTorque.data(), torsionTorque, nUpload, CopyDir::D2H);
+		cuda_copy(i.objectPointed.data(), objectPointed, nUpload, CopyDir::D2H);
+		cuda_copy(i.objectPointing.data(), objectPointing, nUpload, CopyDir::D2H);
+		cuda_copy(i.isBonded.data(), isBonded, nUpload, CopyDir::D2H);
+		i.num = num;
 	}
 };
 

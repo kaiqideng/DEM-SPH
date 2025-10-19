@@ -2,13 +2,63 @@
 
 void solverBase::solve()
 {
+    initialize();
+    while (simPara.iStep <= simPara.numSteps)
     {
-        initialize();
-        while (simPara.iStep <= simPara.numSteps)
-        {
-            update();
-            simPara.iStep++;
-        }
+        update();
+        simPara.iStep++;
+    }
+}
+
+void solverBase::initialize()
+{
+    std::cout << "Initializing..." << std::endl;
+    hos.contactModels = HostSolidContactModel(10);
+    conditionInitialize();
+
+    std::cout << "Using GPU Device " << gpuPara.deviceIndex << std::endl;
+    cudaError_t cudaStatus;
+    cudaStatus = cudaSetDevice(gpuPara.deviceIndex);
+    if (cudaStatus != cudaSuccess)
+    {
+        std::cerr << "cudaSetDevice failed!  Do you have a CUDA-capable GPU installed?" << std::endl;
+        exit(1);
+    }
+
+    buildDeviceData();
+    neighborSearch(dev, gpuPara.maxThreadsPerBlock);
+    addBondData();
+
+    removeVtuFiles(dir);
+    removeDatFiles(dir);
+    outputData();
+
+    simPara.numSteps = int((simPara.maximumTime) / simPara.timeStep) + 1;
+    simPara.frameInterval = simPara.numSteps / simPara.numFrames;
+    if (simPara.frameInterval < 1) simPara.frameInterval = 1;
+
+    simPara.iStep++;
+}
+
+void solverBase::update()
+{
+    neighborSearch(dev, gpuPara.maxThreadsPerBlock);
+
+    solidIntegrateBeforeContact(dev, simPara.timeStep, gpuPara.maxThreadsPerBlock);
+
+    fluidIntegrate(dev, simPara.timeStep, simPara.iStep, gpuPara.maxThreadsPerBlock);
+
+    calSolidContactAfterFluidIntegrate(dev, simPara.timeStep, gpuPara.maxThreadsPerBlock);
+
+    handleDataAfterContact();
+
+    solidIntegrateAfterContact(dev, simPara.timeStep, gpuPara.maxThreadsPerBlock);
+
+    if (simPara.iStep % simPara.frameInterval == 0)
+    {
+        simPara.iFrame++;
+        std::cout << "Frame " << simPara.iFrame << " at time " << simPara.iStep * simPara.timeStep << std::endl;
+        outputData();
     }
 }
 
@@ -196,55 +246,4 @@ void solverBase::outputSolidVTU()
         "    </Piece>\n"
         "  </UnstructuredGrid>\n"
         "</VTKFile>\n";
-}
-
-void solverBase::initialize()
-{
-	std::cout << "Initializing..." << std::endl;
-	hos.contactModels = HostSolidContactModel(10);
-    conditionInitialize();
-
-    std::cout << "Using GPU Device " << gpuPara.deviceIndex << std::endl;
-    cudaError_t cudaStatus;
-    cudaStatus = cudaSetDevice(gpuPara.deviceIndex);
-    if (cudaStatus != cudaSuccess)
-    {
-        std::cerr << "cudaSetDevice failed!  Do you have a CUDA-capable GPU installed?" << std::endl;
-        exit(1);
-    }
-
-    buildDeviceData();
-
-    setBond(dev, gpuPara.maxThreadsPerBlock);
-
-	removeVtuFiles(dir);
-	removeDatFiles(dir);
-    outputData();
-
-    simPara.numSteps = int((simPara.maximumTime - simPara.iStep * simPara.timeStep) / simPara.timeStep) + 1;
-    simPara.frameInterval = simPara.numSteps / simPara.numFrames;
-    if (simPara.frameInterval < 1) simPara.frameInterval = 1;
-    simPara.iStep++;
-}
-
-void solverBase::update()
-{
-    neighborSearch(dev, gpuPara.maxThreadsPerBlock);
-
-	solidIntegrateBeforeContact(dev, simPara.timeStep, gpuPara.maxThreadsPerBlock);
-
-    fluidIntegrate(dev, simPara.timeStep, simPara.iStep, gpuPara.maxThreadsPerBlock);
-
-    calSolidContactAfterFluidIntegrate(dev, simPara.timeStep, gpuPara.maxThreadsPerBlock);
-
-    handleDataAfterContact();
-
-    solidIntegrateAfterContact(dev, simPara.timeStep, gpuPara.maxThreadsPerBlock);
-
-    if (simPara.iStep % simPara.frameInterval == 0)
-    {
-        simPara.iFrame++;
-        std::cout << "Frame " << simPara.iFrame << " at time " << simPara.iStep * simPara.timeStep << std::endl;
-        outputData();
-    }
 }

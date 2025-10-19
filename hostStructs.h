@@ -201,6 +201,41 @@ struct HostInteractionSolid2Solid
 	}
 };
 
+struct HostInteractionBonded
+{
+	int num{ 0 };
+	std::vector<double3> contactNormal;
+	std::vector<double3> contactPoint;
+	std::vector<double3> shearForce;
+	std::vector<double3> bendingTorque;
+	std::vector<double> normalForce;
+	std::vector<double> torsionTorque;
+	std::vector<int> objectPointed;
+	std::vector<int> objectPointing;
+	std::vector<int> isBonded;
+
+	HostInteractionBonded() = default;
+
+	explicit HostInteractionBonded(int n)
+		:num(n), contactNormal(n, make_double3(0, 0, 0)), contactPoint(n, make_double3(0, 0, 0)), shearForce(n, make_double3(0, 0, 0)), bendingTorque(n, make_double3(0, 0, 0)), normalForce(n, 0.), torsionTorque(n, 0.), objectPointed(n, -1), objectPointing(n, -1), isBonded(n, 0)
+	{
+	}
+
+	void insertData(const HostInteractionBonded i)
+	{
+		contactNormal.insert(contactNormal.end(), i.contactNormal.begin(), i.contactNormal.end());
+		contactPoint.insert(contactPoint.end(), i.contactPoint.begin(), i.contactPoint.end());
+		shearForce.insert(shearForce.end(), i.shearForce.begin(), i.shearForce.end());
+		bendingTorque.insert(bendingTorque.end(), i.bendingTorque.begin(), i.bendingTorque.end());
+		normalForce.insert(normalForce.end(), i.normalForce.begin(), i.normalForce.end());
+		torsionTorque.insert(torsionTorque.end(), i.torsionTorque.begin(), i.torsionTorque.end());
+		objectPointed.insert(objectPointed.end(), i.objectPointed.begin(), i.objectPointed.end());
+		objectPointing.insert(objectPointing.end(), i.objectPointing.begin(), i.objectPointing.end());
+		isBonded.insert(isBonded.end(), i.isBonded.begin(), i.isBonded.end());
+		num += i.num;
+	}
+};
+
 struct HostHertzianContactModel
 {
 	std::vector<double> E;
@@ -305,5 +340,6 @@ struct HostData
 	HostInteractionBase fluid2Fluid;
 	HostInteractionBase fluid2Solid;
 	HostInteractionSolid2Solid solid2Solid;
+	HostInteractionBonded solidBond2Solid;
 	HostSolidContactModel contactModels;
 };
