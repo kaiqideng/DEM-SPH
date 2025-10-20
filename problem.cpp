@@ -29,17 +29,17 @@ public:
 	void conditionInitialize() override
 	{
 		setProblemName("test");
-		double spacing = 0.035;
-		double H = 0.7;
-		setDomain(make_double3(-3. * spacing, -3. * spacing, -3. * spacing), make_double3(5 * H + 6. * spacing, 2 * H + 6. * spacing, 2.5 * H + 6. * spacing));
+		double spacing = 0.015;
+		double H = 0.3;
+		setDomain(make_double3(-3. * spacing, -3. * spacing, -3. * spacing), make_double3(5.4 * H + 6. * spacing, 2 * H + 6. * spacing, 3 * H + 6. * spacing));
 		
 		std::vector<double3> fp = getRegularPackedPoints(make_double3(0, 0, 0), make_double3(2 * H, 2 * H, H), spacing);
 		addFluid(fp, make_double3(0, 0, 0), 1.3 * spacing, 1000., 10 * 2 * sqrt(9.81 * H), 1.e-6);
-		std::vector<double3> sp0 = getRegularPackedPoints(make_double3(-3 * spacing, -3 * spacing, -3 * spacing), make_double3(5 * H + 6 * spacing, 2 * H + 6 * spacing, 2.5 * H + 6 * spacing), spacing);
+		std::vector<double3> sp0 = getRegularPackedPoints(make_double3(-3 * spacing, -3 * spacing, -3 * spacing), make_double3(5.4 * H + 6 * spacing, 2 * H + 6 * spacing, 3 * H + 6 * spacing), spacing);
 		std::vector<double3> sp1;
 		for (const auto& p : sp0)
 		{
-			if (p.x < 0 || p.y < 0 || p.z < 0 || p.x > 5 * H || p.y > 2 * H) sp1.push_back(p);
+			if (p.x < 0 || p.y < 0 || p.z < 0 || p.x > 5.4 * H || p.y > 2 * H) sp1.push_back(p);
 		}
 		addSolid(sp1, make_double3(0, 0, 0), 0.5 * spacing, 0., 0);
 		double dt = 0.25 * 1.3 * spacing / (11 * 2 * sqrt(9.81 * H));
@@ -164,6 +164,6 @@ public:
 
 int main()
 {
-	test2 problem;
+	test problem;
 	problem.solve();
 }

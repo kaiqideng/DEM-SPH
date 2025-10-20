@@ -10,7 +10,7 @@ void data::addFluid(std::vector<double3> p, double3 velocity, double smoothLengt
         f.dyn.velocities[i] = velocity;
         f.rho0[i] = density;
         f.c[i] = soundSpeed;
-        f.gamma[i] = kinematicViscosity;
+        f.v[i] = kinematicViscosity;
     }
 
     addFluidData(f);

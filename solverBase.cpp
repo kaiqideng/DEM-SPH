@@ -217,13 +217,17 @@ void solverBase::outputSolidVTU()
     for (size_t i = 0; i < N; ++i) out << ' ' << hos.solids.radius[i];
     out << "\n        </DataArray>\n";
 
-	out << "        <DataArray type=\"Float32\" Name=\"pressure\" format=\"ascii\">\n";
-	for (size_t i = 0; i < N; ++i) out << ' ' << hos.solids.pressure[i];
-	out << "\n        </DataArray>\n";
+	//out << "        <DataArray type=\"Float32\" Name=\"pressure\" format=\"ascii\">\n";
+	//for (size_t i = 0; i < N; ++i) out << ' ' << hos.solids.pressure[i];
+	//out << "\n        </DataArray>\n";
 
     out << "        <DataArray type=\"Int32\" Name=\"clusterID\" format=\"ascii\">\n";
     for (size_t i = 0; i < N; ++i) out << ' ' << hos.solids.clusterID[i];
     out << "\n        </DataArray>\n";
+
+	out << "        <DataArray type=\"Int32\" Name=\"clumpID\" format=\"ascii\">\n";
+	for (size_t i = 0; i < N; ++i) out << ' ' << hos.solids.clumpID[i];
+	out << "\n        </DataArray>\n";
 
     const struct {
         const char* name;

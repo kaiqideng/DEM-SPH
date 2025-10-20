@@ -1,7 +1,7 @@
 #pragma once
 #include "neighborSearch.h"
 
-__global__ void calSolidPointPressure(solid s, fluid f, interactionBase fluid2Solid, double3 g);
+__global__ void calDummyParticlePressureSmoothedVelocity(solid s, fluid f, interactionBase fluid2Solid, double3 g);
 
 __global__ void densityReinitialization(fluid f, solid s, interactionBase fluid2Fluid, interactionBase fluid2Solid);
 

@@ -174,26 +174,25 @@ __global__ void solveMassConservationEquationDensityIntegrate(fluid f,
 		double3 r_a = s.points.position[idx_a];
 		double3 v_a = s.dyn.velocities[idx_a];
 		double V_a = 0;
-		if (s.inverseMass[idx_a] < 1.e-10) V_a = pow(h_i / 1.3, 3);
-		else V_a = 4. / 3. * pow(s.radius[idx_a], 3) * pi();
+		if (s.inverseMass[idx_a] > 0. && s.radius[idx_a] > 0.) V_a = 4. / 3. * pow(s.radius[idx_a], 3) * pi();
+		else V_a = pow(h_i / 1.3, 3);
 
 		double h = h_i;
 		double c = c_i;
 		double3 r_ia = r_i - r_a;
 		double3 e_ia = normalize(r_ia);
 		double3 deltaW_ia = gradWendlandKernel3D(r_ia, h);
-		//double3 dv_dt_a = s.dyn.accelerations[idx_a];
-		//double3 n_a = s.normal[idx_a];
-		//double U_L = dot(v_i, -n_a);
-		//double U_R = dot(2 * v_i - v_a, -n_a);
+		double3 dv_dt_a = s.dyn.accelerations[idx_a];
 		double U_L = dot(v_i, -e_ia);
 		double U_R = dot(2 * v_a - v_i, -e_ia);
+		//double U_L = dot(v_i, -e_ia);
+		//double U_R = dot(2 * v_a - v_i, -e_ia);
 		double P_L = P_i;
-		//double P_a = P_i + rho_i * fmax(0., dot(g - dv_dt_a, n_a)) * dot(r_ia, n_a);
-		double P_a = s.pressure[idx_a];
+		double P_a = P_i + rho_i * fmax(0., dot(g - dv_dt_a, e_ia)) * dot(r_ia, e_ia);
+		//double P_a = s.pressure[idx_a];
 		double P_R = P_a;
 		double rho_L = rho_i;
-		double rho_a = P_R / (c * c) + rho0_i;
+		double rho_a = P_a / (c * c) + rho0_i;
 		double rho_R = rho_a;
 		double U_star = (rho_L * U_L + rho_R * U_R + (P_L - P_R) / c) / (rho_L + rho_R);
 		double3 v_star = (U_star - (rho_L * U_L + rho_R * U_R) / (rho_L + rho_R)) * (-e_ia) + (rho_i * v_i + rho_a * v_a) / (rho_i + rho_a);
@@ -221,7 +220,7 @@ __global__ void solveMomentumConservationEquationVelocityIntegrate(fluid f,
 	double rho_i = rho0_i + dRho_i;
 	double c_i = f.c[idx_i];
 	double P_i = dRho_i * c_i * c_i;
-	double gamma_i = f.gamma[idx_i];
+	double gamma_i = f.v[idx_i] * rho_i;
 	double m_i = pow(h_i / 1.3, 3) * rho0_i;
 	double V_i = m_i / rho_i;
 	double3 dv_dt = make_double3(0, 0, 0);
@@ -237,7 +236,7 @@ __global__ void solveMomentumConservationEquationVelocityIntegrate(fluid f,
 		double rho_j = f.rho0[idx_j] + dRho_j;
 		double c_j = f.c[idx_j];
 		double P_j = dRho_j * c_j * c_j;
-		double gamma_j = f.gamma[idx_j];
+		double gamma_j = f.v[idx_j] * rho_j;
 		double m_j = pow(h_j / 1.3, 3) * f.rho0[idx_j];
 		double V_j = m_j / rho_j;
 
@@ -270,7 +269,7 @@ __global__ void solveMomentumConservationEquationVelocityIntegrate(fluid f,
 			double rho_j = f.rho0[idx_j] + dRho_j;
 			double c_j = f.c[idx_j];
 			double P_j = dRho_j * c_j * c_j;
-			double gamma_j = f.gamma[idx_j];
+			double gamma_j = f.v[idx_j] * rho_j;
 			double m_j = pow(h_j / 1.3, 3) * f.rho0[idx_j];
 			double V_j = m_j / rho_j;
 
@@ -297,29 +296,23 @@ __global__ void solveMomentumConservationEquationVelocityIntegrate(fluid f,
 		double3 r_a = s.points.position[idx_a];
 		double3 v_a = s.dyn.velocities[idx_a];
 		double V_a = 0;
-		if (s.inverseMass[idx_a] < 1.e-10) V_a = pow(h_i / 1.3, 3);
-		else V_a = 4. / 3. * pow(s.radius[idx_a], 3) * pi();
+		if (s.inverseMass[idx_a] > 0. && s.radius[idx_a] > 0.) V_a = 4. / 3. * pow(s.radius[idx_a], 3) * pi();
+		else V_a = pow(h_i / 1.3, 3);
 
 		double h = h_i;
 		double c = c_i;
 		double3 r_ia = r_i - r_a;
 		double3 e_ia = normalize(r_ia);
 		double3 deltaW_ia = gradWendlandKernel3D(r_ia, h);
-		//double3 dv_dt_a = s.dyn.accelerations[idx_a];
-		//double3 n_a = s.normal[idx_a];
-		//double U_L = dot(v_i, -n_a);
-		//double U_R = dot(2 * v_i - v_a, -n_a);
-		double U_L = dot(v_i, -e_ia);
-		double U_R = dot(2 * v_a - v_i, -e_ia);
+		double3 dv_dt_a = s.dyn.accelerations[idx_a];
 		double P_L = P_i;
-		//double P_a = P_i + rho_i * fmax(0., dot(g - dv_dt_a, n_a)) * dot(r_ia, n_a);
-		double P_a = s.pressure[idx_a];
+		double P_a = P_i + rho_i * fmax(0., dot(g - dv_dt_a, e_ia)) * dot(r_ia, e_ia);
+		//double P_a = s.pressure[idx_a];
 		double P_R = P_a;
 		double rho_L = rho_i;
-		double rho_a = P_R / (c * c) + rho0_i;
+		double rho_a = P_a / (c * c) + rho0_i;
 		double rho_R = rho_a;
-		double beta = fmin(3. * fmax(U_L - U_R, 0.), c);
-		double P_star = (rho_L * P_R + rho_R * P_L + rho_L * rho_R * beta * (U_L - U_R)) / (rho_L + rho_R);
+		double P_star = (rho_L * P_R + rho_R * P_L) / (rho_L + rho_R);
 		double3 f_s0 = f_s;
 		f_s += -2 / m_i * V_i * V_a * P_star * deltaW_ia + 2 / m_i * V_i * V_a * gamma_i * (v_i - v_a) / length(r_ia) * dot(e_ia, deltaW_ia);
 		fluid2Solid.force[k] = (f_s - f_s0) * m_i;
@@ -330,7 +323,7 @@ __global__ void solveMomentumConservationEquationVelocityIntegrate(fluid f,
 	f.dyn.velocities[idx_i] += dv_dt * dt;
 }
 
-__global__ void calSolidPointPressure(solid s,
+__global__ void calDummyParticlePressureSmoothedVelocity(solid s,
 	fluid f,
 	interactionBase fluid2Solid,
 	double3 g)
@@ -339,8 +332,10 @@ __global__ void calSolidPointPressure(solid s,
 	if (idx_i >= s.points.num) return;
 
 	s.pressure[idx_i] = 0.;
-	double item0 = 0.; double3 item1 = make_double3(0, 0, 0); double item2 = 0.;
+	s.smoothedVelocity[idx_i] = make_double3(0, 0, 0);
+	double item0 = 0.; double3 item1 = make_double3(0, 0, 0), item11 = make_double3(0, 0, 0); double item2 = 0.;
 	double3 r_w = s.points.position[idx_i];
+	double3 v_w = s.dyn.velocities[idx_i];
 	double3 a_w = s.dyn.accelerations[idx_i];
 	if (s.fluidSolidRange.start[idx_i] != 0xFFFFFFFF)
 	{
@@ -348,6 +343,7 @@ __global__ void calSolidPointPressure(solid s,
 		{
 			int k1 = fluid2Solid.hash.index[k];
 			int idx_j = fluid2Solid.objectPointed[k1];
+			double3 v_f = f.dyn.velocities[idx_j];
 			double3 r_f = f.points.position[idx_j];
 			double h = f.points.effectiveRadii[idx_j];
 			double rho_f = f.rho0[idx_j] + f.dRho[idx_j];
@@ -355,11 +351,16 @@ __global__ void calSolidPointPressure(solid s,
 			double W = wendlandKernel3D(length(r_w - r_f), h);
 			item0 += p_f * W;
 			item1 += (r_w - r_f) * rho_f * W;
+			item11 += v_f * W;
 			item2 += W;
 		}
 	}
 
-	if (item2 > 1.e-10) s.pressure[idx_i] = (item0 + dot(g - a_w, item1)) / item2;
+	if (item2 > 1.e-10)
+	{
+		s.pressure[idx_i] = (item0 + dot(g - a_w, item1)) / item2;
+		s.smoothedVelocity[idx_i] = item11 / item2;
+	}
 }
 
 __global__ void fluidPositionIntegrate(fluid f,
@@ -376,18 +377,23 @@ void fluidIntegrate(DeviceData& d, double timeStep, int iStep, int maxThreadsPer
 	int grid = 1, block = 1;
 	int numObjects = d.solids.points.num;
 	computeGPUParameter(grid, block, numObjects, maxThreadsPerBlock);
-	calSolidPointPressure << <grid, block >> > (d.solids, d.fluids, d.fluid2Solid, d.gravity);
+
+	//calDummyParticlePressureSmoothedVelocity << <grid, block >> > (d.solids, d.fluids, d.fluid2Solid, d.gravity);
 
 	numObjects = d.fluids.points.num;
 	computeGPUParameter(grid, block, numObjects, maxThreadsPerBlock);
 
-	solveMomentumConservationEquationVelocityIntegrate << <grid, block >> > (d.fluids, d.solids, d.fluid2Fluid, d.fluid2Solid, d.gravity, 0.5 * timeStep);
+	if (iStep % 5 == 0) densityReinitialization << <grid, block >> > (d.fluids, d.solids, d.fluid2Fluid, d.fluid2Solid);
 
-	fluidPositionIntegrate << <grid, block >> > (d.fluids, timeStep);
+	solveMassConservationEquationDensityIntegrate << <grid, block >> > (d.fluids, d.solids, d.fluid2Fluid, d.fluid2Solid, d.gravity, 0.5 * timeStep);
 
-	solveMassConservationEquationDensityIntegrate << <grid, block >> > (d.fluids, d.solids, d.fluid2Fluid, d.fluid2Solid, d.gravity, timeStep);
+	fluidPositionIntegrate << <grid, block >> > (d.fluids, 0.5 * timeStep);
 
-	solveMomentumConservationEquationVelocityIntegrate << <grid, block >> > (d.fluids, d.solids, d.fluid2Fluid, d.fluid2Solid, d.gravity, 0.5 * timeStep);
+	solveMomentumConservationEquationVelocityIntegrate << <grid, block >> > (d.fluids, d.solids, d.fluid2Fluid, d.fluid2Solid, d.gravity, timeStep);
+
+	fluidPositionIntegrate << <grid, block >> > (d.fluids, 0.5 * timeStep);
+
+	solveMassConservationEquationDensityIntegrate << <grid, block >> > (d.fluids, d.solids, d.fluid2Fluid, d.fluid2Solid, d.gravity, 0.5 * timeStep);
 }
 
 __global__ void calSolidContactForceTorque(interactionSolid2Solid solid2Solid,
