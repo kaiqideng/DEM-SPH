@@ -67,9 +67,9 @@ void data::addCluster(std::vector<double3> p, std::vector<double> radius, std::v
     }
 
     addSolidData(s);
-    if (getStep() > 0)
+    if (simPara.iStep > 0)
     {
-		neighborSearch(dev, gpuPara.maxThreadsPerBlock);
+		neighborSearch(dev, 0, 1, gpuPara.maxThreadsPerBlock);
         addBondData();
     }
 }
@@ -118,7 +118,7 @@ void data::addClump(std::vector<double3> p, std::vector<double> radius, double3 
 	}
 
 	addSolidData(s);
-    if (getStep() > 0)
+    if (simPara.iStep > 0)
     {
 		dev.clumps.uploadState(hos.clumps);
         c.pebbleEndIndex[0] = hos.solids.points.num;
@@ -139,7 +139,7 @@ void data::addExternalForce(int index, double3 force)
 		std::cout << "Error: the index of the solid particle is out of range when adding external force." << std::endl;
 		return;
 	}
-	if (getStep() == 0)
+	if (simPara.iStep == 0)
 	{
 		std::cout << "Error: external forces can only be added after the simulation starts." << std::endl;
 		return;
@@ -157,7 +157,7 @@ void data::addGlobalDamping(int index, double C_d)
 		std::cout << "Error: the index of the solid particle is out of range when adding global damping." << std::endl;
 		return;
 	}
-	if (getStep() == 0)
+	if (simPara.iStep == 0)
 	{
 		std::cout << "Error: global damping can only be added after the simulation starts." << std::endl;
 		return;

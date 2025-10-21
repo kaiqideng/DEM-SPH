@@ -314,7 +314,7 @@ struct HostSolidContactModel
 		bonded = HostBondedContactModel(nCombined);
 	}
 
-	int getCombinedIndex(size_t mA, size_t mB) const
+	int getCombinedIndex(int mA, int mB) const
 	{
 		if (mA >= nMaterial || mB >= nMaterial)
 		{

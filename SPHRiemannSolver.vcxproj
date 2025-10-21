@@ -93,6 +93,7 @@
     <ClInclude Include="myVec.h" />
     <ClInclude Include="neighborSearch.h" />
     <ClInclude Include="solverBase.h" />
+    <ClInclude Include="SPHKernelDEMContactModel.h" />
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="data.cpp" />

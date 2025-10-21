@@ -37,6 +37,9 @@ public:
         domainOrigin = make_double3(0, 0, 0);
         domainSize = make_double3(1, 1, 1);
         gravity = make_double3(0, 0, -9.81);
+        solidTimeStep = 1.;
+		fluidTimeStep = 1.;
+        fluidIntegrateGap = 1;
     }
 
     ~data()
@@ -53,25 +56,17 @@ protected:
 
     void setSimulationParameterMaximumTime(double t)
     {
+        if (t <= 0.)
+        {
+			std::cout << "Error: maximum time must be positive." << std::endl;
+			return;
+        }
         if (simPara.iStep > 0)
         {
             std::cout << "Warning: cannot change the number of frames during simulation." << std::endl;
             return;
         }
         simPara.maximumTime = t;
-    }
-
-    void setSimulationParameterTimeStep(double dt)
-    {
-		if (simPara.iStep > 0)
-		{
-            double t = getTime();
-            simPara.iStep = int(t / dt) + 1;
-            simPara.numSteps = int(simPara.maximumTime / dt) + 1;
-            simPara.frameInterval = (simPara.numSteps - simPara.iStep) / (simPara.numFrames - simPara.iFrame);
-            if (simPara.frameInterval < 1) simPara.frameInterval = 1;
-		}
-        simPara.timeStep = dt;
     }
 
     void setSimulationParameterNumFrames(int n)
@@ -89,10 +84,45 @@ protected:
         simPara.numFrames = n;
     }
 
+    void setSolidIntegrateTimeStep(double dt)
+    {
+        if (dt <= 0.)
+        {
+			std::cout << "Error: time step must be non-negative." << std::endl;
+			return;
+        }
+        if (simPara.iStep > 0)
+        {
+			std::cout << "Warning: cannot change the time step during simulation." << std::endl;
+            return;
+        }
+		solidTimeStep = dt;
+    }
+
+    void setFluidIntegrateTimeStep(double dt)
+    {
+        if (dt <= 0.)
+        {
+            std::cout << "Error: time step must be non-negative." << std::endl;
+            return;
+        }
+        if (simPara.iStep > 0)
+        {
+			std::cout << "Warning: cannot change the time step during simulation." << std::endl;
+            return;
+        }
+		fluidTimeStep = dt;
+    }
+
     void setDomain(double3 origin, double3 size)
     {
         domainOrigin = origin;
         domainSize = size;
+		if (size.x <= 0. || size.y <= 0. || size.z <= 0.)
+		{
+			std::cout << "Error: domain size must be positive in all directions." << std::endl;
+			return;
+		}
         if (simPara.iStep > 0) setSpatialGrids();
     }
 
@@ -177,19 +207,9 @@ protected:
 		return simPara.iStep * simPara.timeStep;
 	}
 
-	const int getStep() const
-	{
-		return simPara.iStep;
-	}
-
-	const int getFrame() const
-	{
-		return simPara.iFrame;
-	}
-
 	const HostData& getHostData()
 	{ 
-        if (getStep() < 1) return hos;
+        if (simPara.iStep < 1) return hos;
 		dev.fluids.uploadState(hos.fluids);
 		dev.solids.uploadState(hos.solids);
 		dev.clumps.uploadState(hos.clumps);
@@ -208,6 +228,9 @@ private:
     double3 domainOrigin;
     double3 domainSize;
     double3 gravity;
+    double solidTimeStep;
+	double fluidTimeStep;
+	int fluidIntegrateGap;
 
     void addFluidData(const HostFluid f);
 

@@ -202,7 +202,7 @@ __global__ void solveMassConservationEquationDensityIntegrate(fluid f,
 	f.dRho[idx_i] += dt * dRho_dt;
 }
 
-__global__ void solveMomentumConservationEquationVelocityIntegrate(fluid f,
+__global__ void solveMomentumConservationEquation(fluid f,
 	solid s,
 	interactionBase fluid2Fluid,
 	interactionBase fluid2Solid,
@@ -320,7 +320,6 @@ __global__ void solveMomentumConservationEquationVelocityIntegrate(fluid f,
 
 	dv_dt += f_s + g;
 	f.dyn.accelerations[idx_i] = dv_dt;
-	f.dyn.velocities[idx_i] += dv_dt * dt;
 }
 
 __global__ void calDummyParticlePressureSmoothedVelocity(solid s,
@@ -363,6 +362,15 @@ __global__ void calDummyParticlePressureSmoothedVelocity(solid s,
 	}
 }
 
+__global__ void fluidVelocityIntegrate(fluid f,
+	double dt)
+{
+	int idx_i = blockIdx.x * blockDim.x + threadIdx.x;
+	if (idx_i >= f.points.num) return;
+
+	f.dyn.velocities[idx_i] += dt * f.dyn.accelerations[idx_i];
+}
+
 __global__ void fluidPositionIntegrate(fluid f,
 	double dt)
 {
@@ -372,28 +380,41 @@ __global__ void fluidPositionIntegrate(fluid f,
 	f.points.position[idx_i] += dt * f.dyn.velocities[idx_i];
 }
 
-void fluidIntegrate(DeviceData& d, double timeStep, int iStep, int maxThreadsPerBlock)
+void fluidIntegrate(DeviceData& d, double timeStep, int iStep, int integrateGap, int maxThreadsPerBlock)
 {
 	int grid = 1, block = 1;
-	int numObjects = d.solids.points.num;
-	computeGPUParameter(grid, block, numObjects, maxThreadsPerBlock);
+	int numObjects = 0;
 
-	//calDummyParticlePressureSmoothedVelocity << <grid, block >> > (d.solids, d.fluids, d.fluid2Solid, d.gravity);
+	//numObjects = d.solids.points.num;
+    //computeGPUParameter(grid, block, numObjects, maxThreadsPerBlock);
+    //calDummyParticlePressureSmoothedVelocity << <grid, block >> > (d.solids, d.fluids, d.fluid2Solid, d.gravity);
 
 	numObjects = d.fluids.points.num;
 	computeGPUParameter(grid, block, numObjects, maxThreadsPerBlock);
+	double timeStep_f = 0;
+	int run2ndIntegration = 0;
+	if (iStep % integrateGap == 0)
+	{
+		timeStep_f = timeStep* double(integrateGap);
+		run2ndIntegration = 1;
 
-	if (iStep % 5 == 0) densityReinitialization << <grid, block >> > (d.fluids, d.solids, d.fluid2Fluid, d.fluid2Solid);
+		if (iStep % (5 * integrateGap) == 0) densityReinitialization << <grid, block >> > (d.fluids, d.solids, d.fluid2Fluid, d.fluid2Solid);
 
-	solveMassConservationEquationDensityIntegrate << <grid, block >> > (d.fluids, d.solids, d.fluid2Fluid, d.fluid2Solid, d.gravity, 0.5 * timeStep);
+		solveMassConservationEquationDensityIntegrate << <grid, block >> > (d.fluids, d.solids, d.fluid2Fluid, d.fluid2Solid, d.gravity, 0.5 * timeStep_f);
 
-	fluidPositionIntegrate << <grid, block >> > (d.fluids, 0.5 * timeStep);
+		fluidPositionIntegrate << <grid, block >> > (d.fluids, 0.5 * timeStep_f);
+	}
 
-	solveMomentumConservationEquationVelocityIntegrate << <grid, block >> > (d.fluids, d.solids, d.fluid2Fluid, d.fluid2Solid, d.gravity, timeStep);
+	solveMomentumConservationEquation << <grid, block >> > (d.fluids, d.solids, d.fluid2Fluid, d.fluid2Solid, d.gravity, timeStep);
 
-	fluidPositionIntegrate << <grid, block >> > (d.fluids, 0.5 * timeStep);
+	if (run2ndIntegration == 1)
+	{
+		fluidVelocityIntegrate << <grid, block >> > (d.fluids, timeStep_f);
 
-	solveMassConservationEquationDensityIntegrate << <grid, block >> > (d.fluids, d.solids, d.fluid2Fluid, d.fluid2Solid, d.gravity, 0.5 * timeStep);
+		fluidPositionIntegrate << <grid, block >> > (d.fluids, 0.5 * timeStep_f);
+
+		solveMassConservationEquationDensityIntegrate << <grid, block >> > (d.fluids, d.solids, d.fluid2Fluid, d.fluid2Solid, d.gravity, 0.5 * timeStep_f);
+	}
 }
 
 __global__ void calSolidContactForceTorque(interactionSolid2Solid solid2Solid,

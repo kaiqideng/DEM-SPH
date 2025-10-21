@@ -309,43 +309,48 @@ __global__ void setSolid2SolidInteractionsKernel(interactionSolid2Solid solid2So
     }
 }
 
-void neighborSearch(DeviceData& d, int maxThreadsPerBlock)
+void neighborSearch(DeviceData& d, int iStep, int fluidNeighborSearchGap, int maxThreadsPerBlock)
 {
 	updateGridCellStartEnd(d.fluids, d.solids, d.spatialGrids, maxThreadsPerBlock);
 
     int grid = 1, block = 1;
-    int numObjects = d.fluids.points.num;
-    if (numObjects > 0)
+    int numObjects = 0;
+    
+    if (iStep % fluidNeighborSearchGap == 0)
     {
-        computeGPUParameter(grid, block, numObjects, maxThreadsPerBlock);
-        for (int flag = 0; flag < 2; flag++)
+        numObjects = d.fluids.points.num;
+        if (numObjects > 0)
         {
-            setFluidInteractionsKernel << <grid, block >> > (d.fluid2Fluid, d.fluid2Solid,
-                d.fluids,
-                d.solids,
-                d.spatialGrids,
-                flag);
-            if (flag == 0)
+            computeGPUParameter(grid, block, numObjects, maxThreadsPerBlock);
+            for (int flag = 0; flag < 2; flag++)
             {
-                int nFF = 0, nFS = 0;
-                inclusiveScan(d.fluids.fluidNeighbor.prefixSum, d.fluids.fluidNeighbor.count, numObjects);
-                inclusiveScan(d.fluids.solidNeighbor.prefixSum, d.fluids.solidNeighbor.count, numObjects);
-                cudaMemcpy(&nFF, d.fluids.fluidNeighbor.prefixSum + numObjects - 1, sizeof(int), cudaMemcpyDeviceToHost);
-                cudaMemcpy(&nFS, d.fluids.solidNeighbor.prefixSum + numObjects - 1, sizeof(int), cudaMemcpyDeviceToHost);
-                d.fluid2Fluid.setNum(nFF);
-                d.fluid2Solid.setNum(nFS);
+                setFluidInteractionsKernel << <grid, block >> > (d.fluid2Fluid, d.fluid2Solid,
+                    d.fluids,
+                    d.solids,
+                    d.spatialGrids,
+                    flag);
+                if (flag == 0)
+                {
+                    int nFF = 0, nFS = 0;
+                    inclusiveScan(d.fluids.fluidNeighbor.prefixSum, d.fluids.fluidNeighbor.count, numObjects);
+                    inclusiveScan(d.fluids.solidNeighbor.prefixSum, d.fluids.solidNeighbor.count, numObjects);
+                    cudaMemcpy(&nFF, d.fluids.fluidNeighbor.prefixSum + numObjects - 1, sizeof(int), cudaMemcpyDeviceToHost);
+                    cudaMemcpy(&nFS, d.fluids.solidNeighbor.prefixSum + numObjects - 1, sizeof(int), cudaMemcpyDeviceToHost);
+                    d.fluid2Fluid.setNum(nFF);
+                    d.fluid2Solid.setNum(nFS);
+                }
             }
-        }
-        d.fluids.fluidRange.reset(numObjects);
-        d.fluid2Fluid.hash.reset(d.fluid2Fluid.capacity);
-        d.fluid2Fluid.setHash();
-        buildHashSpans(d.fluids.fluidRange.start, d.fluids.fluidRange.end, d.fluid2Fluid.hash.index, d.fluid2Fluid.hash.value, d.fluid2Fluid.hash.aux, d.fluid2Fluid.num, maxThreadsPerBlock);
+            d.fluids.fluidRange.reset(numObjects);
+            d.fluid2Fluid.hash.reset(d.fluid2Fluid.capacity);
+            d.fluid2Fluid.setHash();
+            buildHashSpans(d.fluids.fluidRange.start, d.fluids.fluidRange.end, d.fluid2Fluid.hash.index, d.fluid2Fluid.hash.value, d.fluid2Fluid.hash.aux, d.fluid2Fluid.num, maxThreadsPerBlock);
 
-        numObjects = d.solids.points.num;
-        d.solids.fluidSolidRange.reset(numObjects);
-        d.fluid2Solid.hash.reset(d.fluid2Solid.capacity);
-        d.fluid2Solid.setHash();
-        buildHashSpans(d.solids.fluidSolidRange.start, d.solids.fluidSolidRange.end, d.fluid2Solid.hash.index, d.fluid2Solid.hash.value, d.fluid2Solid.hash.aux, d.fluid2Solid.num, maxThreadsPerBlock);
+            numObjects = d.solids.points.num;
+            d.solids.fluidSolidRange.reset(numObjects);
+            d.fluid2Solid.hash.reset(d.fluid2Solid.capacity);
+            d.fluid2Solid.setHash();
+            buildHashSpans(d.solids.fluidSolidRange.start, d.solids.fluidSolidRange.end, d.fluid2Solid.hash.index, d.fluid2Solid.hash.value, d.fluid2Solid.hash.aux, d.fluid2Solid.num, maxThreadsPerBlock);
+        }
     }
     
     numObjects = d.solids.points.num;

@@ -25,7 +25,7 @@ __global__ void setFluidInteractionsKernel(interactionBase fluid2Fluid, interact
 
 __global__ void setSolid2SolidInteractionsKernel(interactionSolid2Solid solid2Solid, solid s, spatialGrid sG, int flag);
 
-void neighborSearch(DeviceData& d, int maxThreadsPerBlock);
+void neighborSearch(DeviceData& d, int iStep, int fluidNeighborSearchGap, int maxThreadsPerBlock);
 
 inline void computeGPUParameter(int& gridSize, int& blockSize,
     int nElements,
