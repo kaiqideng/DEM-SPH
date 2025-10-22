@@ -8,41 +8,41 @@
 #include <iomanip>
 #include <iostream>
 
-static void ltrim(std::string& s)
-{
-    size_t i = 0;
-    while (i < s.size() && std::isspace(static_cast<unsigned char>(s[i]))) ++i;
-    s.erase(0, i);
-}
-
-static bool getlineValid(std::ifstream& fin, std::string& line)
-{
-    while (std::getline(fin, line))
-    {
-        ltrim(line);
-        if (line.empty() || line[0] == '#') continue;
-        return true;
-    }
-    return false;
-}
-
-static int countValidNumbersStrict(const std::string& line)
-{
-    std::istringstream iss(line);
-    std::string token;
-    int count = 0;
-    while (iss >> token)
-    {
-        std::istringstream tokStream(token);
-        double d;
-        char c;
-        if (tokStream >> d && !(tokStream >> c))
-        {
-            ++count;
-        }
-    }
-    return count;
-}
+//static void ltrim(std::string& s)
+//{
+//    size_t i = 0;
+//    while (i < s.size() && std::isspace(static_cast<unsigned char>(s[i]))) ++i;
+//    s.erase(0, i);
+//}
+//
+//static bool getlineValid(std::ifstream& fin, std::string& line)
+//{
+//    while (std::getline(fin, line))
+//    {
+//        ltrim(line);
+//        if (line.empty() || line[0] == '#') continue;
+//        return true;
+//    }
+//    return false;
+//}
+//
+//static int countValidNumbersStrict(const std::string& line)
+//{
+//    std::istringstream iss(line);
+//    std::string token;
+//    int count = 0;
+//    while (iss >> token)
+//    {
+//        std::istringstream tokStream(token);
+//        double d;
+//        char c;
+//        if (tokStream >> d && !(tokStream >> c))
+//        {
+//            ++count;
+//        }
+//    }
+//    return count;
+//}
 
 #ifdef _WIN32
 #include <io.h>

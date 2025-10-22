@@ -10,7 +10,7 @@ public:
 		// add your code here
 	}
 
-	void handleDataAfterContact() override
+	void handleDataAfterCalculateContact() override
 	{
 		// add your code here
 	}
@@ -43,7 +43,7 @@ public:
 		}
 		addSolid(sp1, make_double3(0, 0, 0), 0.5 * spacing, 0., 0);
 		double dt = 0.25 * 1.3 * spacing / (11 * 2 * sqrt(9.81 * H));
-		setFluidIntegrateTimeStep(dt);
+		setSimulationParameterTimeStep(dt);
 		setSimulationParameterMaximumTime(5.);
 		setSimulationParameterNumFrames(100);
 	}
@@ -79,15 +79,15 @@ public:
 		den[0] = 0.;//fixed particle
 		addCluster(sp1, rad, den, make_double3(0, 0, 0), 0);
 		double dt = 1.e-5;
-		setSolidIntegrateTimeStep(dt);
+		setSimulationParameterTimeStep(dt);
 		setSimulationParameterMaximumTime(5.);
 		setSimulationParameterNumFrames(100);
 	}
 
-	void handleDataAfterContact() override
+	void handleDataAfterCalculateContact() override
 	{
 		addExternalForce(10, make_double3(0, 0, 100.e3));
-		for (int i = 0;i <= 10;i++)
+		for (int i = 0; i <= 10; i++)
 		{
 			addGlobalDamping(i, 0.1);
 		}
@@ -95,12 +95,12 @@ public:
 
 	void outputData() override
 	{
-		const auto& h = getHostData();
+		const auto& hs = getHostSolidData();
 		std::cout << "Z Displacement(m) of each element: " << std::endl;
 		std::cout << std::fixed << std::setprecision(6);
-		for (int i = 0;i < h.solids.points.num;i++)
+		for (int i = 0;i < hs.points.num;i++)
 		{
-			std::cout << h.solids.points.position[i].z << " ";
+			std::cout << hs.points.position[i].z << " ";
 		}
 		std::cout << std::endl;
 	}
@@ -121,7 +121,6 @@ public:
 
 		std::vector<double3> fp = getRegularPackedPoints(make_double3(0, 0, 0), make_double3(3.5, 0.7, 0.4), spacing);
 		addFluid(fp, make_double3(0, 0, 0), 1.3 * spacing, 1000., 30., 1.e-6);
-		setFluidIntegrateTimeStep(0.25 * 1.3 * spacing / (20 * sqrt(0.4 * 9.8)));
 
 		std::vector<double3> sp0 = getRegularPackedPoints(make_double3(-3 * spacing, -3 * spacing, -3 * spacing), make_double3(8 + 6 * spacing, 0.7 + 6 * spacing, 0.8 + 6 * spacing), spacing);
 		std::vector<double3> sp1;
@@ -130,24 +129,42 @@ public:
 			if (p.x < 0 || p.y < 0 || p.z < 0 || p.x > 8. || p.y > 0.7) sp1.push_back(p);
 		}
 		addSolid(sp1, make_double3(0, 0, 0), 0.5 * spacing, 0., 0);
+
 		setHertzianContactModel(0, 1, 3e9, 3e9 / (2 * (1 + 0.3)), 0.9, 0, 0, 0.35, 0, 0);
 		setHertzianContactModel(1, 1, 3e9, 3e9 / (2 * (1 + 0.3)), 0.9, 0, 0, 0.45, 0, 0);
-		double r_ball = 0.005;
-		double3 s_cub = make_double3(0.15, 0.15, 0.15);
-		std::vector<double3> sp2 = getRegularPackedPoints(make_double3(5.3, 0.275, 0.), s_cub, 2 * r_ball);
-		std::vector<double3> sp3 = getRegularPackedPoints(make_double3(5.3, 0.275, 0.15), s_cub, 2 * r_ball);
-		std::vector<double3> sp4 = getRegularPackedPoints(make_double3(5.3, 0.275, 0.3), s_cub, 2 * r_ball);
-		std::vector<double> rad(sp2.size(), r_ball);
-		double mass = 800 * s_cub.x * s_cub.y * s_cub.z;
-		symMatrix inertia = make_symMatrix(mass / 12. * (s_cub.y * s_cub.y + s_cub.z * s_cub.z), mass / 12. * (s_cub.x * s_cub.x + s_cub.z * s_cub.z), mass / 12. * (s_cub.x * s_cub.x + s_cub.y * s_cub.y), 0., 0., 0.);
-		addClump(sp2, rad, make_double3(5.375, 0.35, 0.075), make_double3(0, 0, 0), mass, inertia, 1);
-		addClump(sp3, rad, make_double3(5.375, 0.35, 0.225), make_double3(0, 0, 0), mass, inertia, 1);
-		addClump(sp4, rad, make_double3(5.375, 0.35, 0.375), make_double3(0, 0, 0), mass, inertia, 1);
-		double dt = pi() / sqrt(3. / 8. * 3e9 / 800.) * r_ball / 50.;
-		setSolidIntegrateTimeStep(dt);
+		double r_ball = 0.015;
+		double k = 0.5 * 3e9 * pi() * r_ball;
+		double mij = 4. / 3. * pi() * r_ball * r_ball * r_ball * 800.;
+		double dt = 0.2 * sqrt(mij / k);
+		double dt_f = 0.25 * 1.3 * spacing / (20 * sqrt(0.4 * 9.8));
+		int gap = int(dt / dt_f);
+		if (gap < 1) gap = 1;
+		setSimulationParameterTimeStep(dt);
+		setFluidIntegrateGap(gap);
 
-		setSimulationParameterMaximumTime(3.);
+		setSimulationParameterMaximumTime(2.);
 		setSimulationParameterNumFrames(100);
+	}
+
+	void handleDataAfterCalculateContact() override
+	{
+		double r_ball = 0.015;
+		double k = 0.5 * 3e9 * pi() * r_ball;
+		double mij = 4. / 3. * pi() * r_ball * r_ball * r_ball * 800.;
+		double dt = 0.2 * sqrt(mij / k);
+		if (getTime() >= 0.5 && getTime() < 0.5 + dt )
+		{
+			double3 s_cub = make_double3(0.15, 0.15, 0.15);
+			std::vector<double3> sp2 = getRegularPackedPoints(make_double3(5.3, 0.275, 0.), s_cub, 2 * r_ball);
+			std::vector<double3> sp3 = getRegularPackedPoints(make_double3(5.3, 0.275, 0.15), s_cub, 2 * r_ball);
+			std::vector<double3> sp4 = getRegularPackedPoints(make_double3(5.3, 0.275, 0.3), s_cub, 2 * r_ball);
+			std::vector<double> rad(sp2.size(), r_ball);
+			double mass = 800 * s_cub.x * s_cub.y * s_cub.z;
+			symMatrix inertia = make_symMatrix(mass / 12. * (s_cub.y * s_cub.y + s_cub.z * s_cub.z), mass / 12. * (s_cub.x * s_cub.x + s_cub.z * s_cub.z), mass / 12. * (s_cub.x * s_cub.x + s_cub.y * s_cub.y), 0., 0., 0.);
+			addClump(sp2, rad, make_double3(5.375, 0.35, 0.075), make_double3(0, 0, 0), mass, inertia, 1);
+			addClump(sp3, rad, make_double3(5.375, 0.35, 0.225), make_double3(0, 0, 0), mass, inertia, 1);
+			addClump(sp4, rad, make_double3(5.375, 0.35, 0.375), make_double3(0, 0, 0), mass, inertia, 1);
+		}
 	}
 
 	void outputData() override
@@ -159,6 +176,6 @@ public:
 
 int main()
 {
-	test problem;
+	damBreak problem;
 	problem.solve();
 }

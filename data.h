@@ -37,8 +37,6 @@ public:
         domainOrigin = make_double3(0, 0, 0);
         domainSize = make_double3(1, 1, 1);
         gravity = make_double3(0, 0, -9.81);
-        solidTimeStep = 1.;
-		fluidTimeStep = 1.;
         fluidIntegrateGap = 1;
     }
 
@@ -84,7 +82,7 @@ protected:
         simPara.numFrames = n;
     }
 
-    void setSolidIntegrateTimeStep(double dt)
+    void setSimulationParameterTimeStep(double dt)
     {
         if (dt <= 0.)
         {
@@ -96,22 +94,17 @@ protected:
 			std::cout << "Warning: cannot change the time step during simulation." << std::endl;
             return;
         }
-		solidTimeStep = dt;
+		simPara.timeStep = dt;
     }
 
-    void setFluidIntegrateTimeStep(double dt)
+    void setFluidIntegrateGap(int gap)
     {
-        if (dt <= 0.)
+        if (gap < 1)
         {
-            std::cout << "Error: time step must be non-negative." << std::endl;
+            std::cout << "Error: fluid integrate gap must be at least 1." << std::endl;
             return;
         }
-        if (simPara.iStep > 0)
-        {
-			std::cout << "Warning: cannot change the time step during simulation." << std::endl;
-            return;
-        }
-		fluidTimeStep = dt;
+		fluidIntegrateGap = gap;
     }
 
     void setDomain(double3 origin, double3 size)
@@ -202,23 +195,24 @@ protected:
 
     void addGlobalDamping(int index, double C_d);
 
-	const double getTime() const
+	double getTime() const
 	{
 		return simPara.iStep * simPara.timeStep;
 	}
 
-	const HostData& getHostData()
+	const HostSolid& getHostSolidData()
 	{ 
-        if (simPara.iStep < 1) return hos;
-		dev.fluids.uploadState(hos.fluids);
+        if (simPara.iStep < 1) return hos.solids;
 		dev.solids.uploadState(hos.solids);
-		dev.clumps.uploadState(hos.clumps);
-		dev.fluid2Fluid.upload(hos.fluid2Fluid);
-		dev.fluid2Solid.upload(hos.fluid2Solid);
-		dev.solid2Solid.upload(hos.solid2Solid);
-		dev.solidBond2Solid.upload(hos.solidBond2Solid);
-		return hos;
+		return hos.solids;
 	}
+
+    const HostFluid& getFluidData()
+    {
+        if (simPara.iStep < 1) return hos.fluids;
+        dev.fluids.uploadState(hos.fluids);
+        return hos.fluids;
+    }
 
 private:
     HostData hos;
@@ -228,8 +222,6 @@ private:
     double3 domainOrigin;
     double3 domainSize;
     double3 gravity;
-    double solidTimeStep;
-	double fluidTimeStep;
 	int fluidIntegrateGap;
 
     void addFluidData(const HostFluid f);

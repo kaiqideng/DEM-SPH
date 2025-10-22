@@ -25,9 +25,6 @@ void solverBase::initialize()
         exit(1);
     }
 
-	fluidIntegrateGap = int(fluidTimeStep / solidTimeStep);
-	if (fluidIntegrateGap < 1) fluidIntegrateGap = 1;
-	simPara.timeStep = std::min(solidTimeStep, fluidTimeStep);
     simPara.numSteps = int((simPara.maximumTime) / simPara.timeStep) + 1;
     simPara.frameInterval = simPara.numSteps / simPara.numFrames;
     if (simPara.frameInterval < 1) simPara.frameInterval = 1;
@@ -56,7 +53,7 @@ void solverBase::update()
 
     calSolidContactAfterFluidIntegrate(dev, simPara.timeStep, gpuPara.maxThreadsPerBlock);
 
-    handleDataAfterContact();
+    handleDataAfterCalculateContact();
 
     solidIntegrateAfterContact(dev, simPara.timeStep, gpuPara.maxThreadsPerBlock);
 

@@ -33,7 +33,7 @@ protected:
     {
     }
 
-    virtual void handleDataAfterContact()
+    virtual void handleDataAfterCalculateContact()
     {
     }
 
