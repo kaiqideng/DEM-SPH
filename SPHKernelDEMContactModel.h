@@ -31,6 +31,87 @@ __device__ __forceinline__ double3 gradWendlandKernel3D(const double3& rij, doub
 	return factor * rij;
 }
 
+__device__ __forceinline__ double getPressure(double rho0, double dRho, double c, double chi)
+{
+	double rho = rho0 + dRho;
+	double p0 = c * c * rho0 / 7.;
+	return p0 * (pow(rho / rho0, 7.) - 1.) + chi;
+}
+
+__device__ __forceinline__ double getDensityFromPressure(double pressure, double rho0, double c, double chi)
+{
+	double p0 = c * c * rho0 / 7.;
+	return rho0 * pow((pressure - chi) / p0 + 1., 1. / 7.);
+}
+
+__device__ __forceinline__ double getDensityIncrementFromParticleJ(double rho_i, double V_j, double3 v_ij, double3 gradW_ij)
+{
+	return rho_i * V_j * dot(v_ij, gradW_ij);
+}
+
+__device__ __forceinline__ double getAveragePressure(double P_i, double rho_i, double P_j, double rho_j)
+{
+	return (rho_i * P_j + rho_j * P_i) / (rho_i + rho_j);
+}
+
+__device__ __forceinline__ double3 getPressureAccelerationFromParticleJ(double m_i, double V_i, double V_j, double P_ij, double3 gradW_ij)
+{
+	return -1. / m_i * (V_i * V_i + V_j * V_j) * P_ij * gradW_ij;
+}
+
+__device__ __forceinline__ double getCombinedViscosity(double rho_i, double nu_i, double rho_j, double nu_j)
+{
+	double gamma_i = rho_i * nu_i;
+	double gamma_j = rho_j * nu_j;
+	return 2. * gamma_i * gamma_j / (gamma_i + gamma_j);
+}
+
+__device__ __forceinline__ double3 getViscosityAccelerationFromParticleJ(double m_i, double V_i, double V_j, double gamma_ij, double3 v_ij, double3 r_ij, double3 gradW_ij)
+{
+	return 1. / m_i * gamma_ij * (V_i * V_i + V_j * V_j) * v_ij / length(r_ij) * dot(normalize(r_ij), gradW_ij);
+}
+
+__device__ __forceinline__ double3 getArtificialViscosityAccelerationFromParticleJ(double m_j, double h_ij, double c_ij, double rho_ij, double alpha, double3 r_ij, double3 v_ij, double3 gradW_ij)//only for fluid particles
+{
+	return -m_j * alpha * h_ij * c_ij * dot(v_ij, r_ij) / (rho_ij * lengthSquared(r_ij) + 0.01 * h_ij * h_ij) * gradW_ij;
+}
+
+__device__ __forceinline__ double getUStar_Riemann(double U_L, double P_L, double rho_L, double U_R, double P_R, double rho_R, double c)
+{
+	return (rho_L * U_L + rho_R * U_R + (P_L - P_R) / c) / (rho_L + rho_R);
+}
+
+__device__ __forceinline__ double3 getAverageVelocity(double rho_i, double rho_j, double3 v_i, double3 v_j)
+{
+	return (rho_i * v_i + rho_j * v_j) / (rho_i + rho_j);
+}
+
+__device__ __forceinline__ double3 getVelocityStar_Riemann(double U_L, double rho_L, double U_R, double rho_R, double3 v_bar, double U_star, double3 e_ij)
+{
+	e_ij *= -1.0;
+	return (U_star - (rho_L * U_L + rho_R * U_R) / (rho_L + rho_R)) * e_ij + v_bar;
+}
+
+__device__ __forceinline__ double getDensityIncrementFromParticleJ_Riemann(double rho_i, double3 v_i, double3 v_star, double V_j, double3 gradW_ij)
+{
+	return 2. * rho_i * V_j * dot(v_i - v_star, gradW_ij);
+}
+
+__device__ __forceinline__ double getPStar_Riemann(double U_L, double P_L, double rho_L, double U_R, double P_R, double rho_R, double beta)
+{
+	return (rho_L * P_R + rho_R * P_L + rho_L * rho_R * beta * (U_L - U_R)) / (rho_L + rho_R);
+}
+
+__device__ __forceinline__ double3 getPressureAccelerationFromParticleJ_Riemann(double m_i, double V_i, double V_j, double P_star, double3 gradW_ij)
+{
+	return -2. / m_i * V_i * V_j * P_star * gradW_ij;
+}
+
+__device__ __forceinline__ double3 getViscosityAccelerationFromParticleJ_Riemann(double m_i, double V_i, double3 v_i, double V_j, double3 v_j, double gamma_ij, double absR_ij, double3 e_ij, double3 gradW_ij)
+{
+	return 2. / m_i * V_i * V_j * gamma_ij * (v_i - v_j) / absR_ij * dot(e_ij, gradW_ij);
+}
+
 __device__ __forceinline__ int ParallelBondedContact(double& bondNormalForce, double& bondTorsionalTorque, double3& bondShearForce, double3& bondBendingTorque,
 	double3 contactNormalPrev,
 	double3 contactNormal,

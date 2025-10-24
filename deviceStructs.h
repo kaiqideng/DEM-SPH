@@ -149,8 +149,9 @@ struct fluid
 	double* rho0{ nullptr }; // initial density
 	double* dRho{ nullptr }; // density change
 	double* c{ nullptr }; // speed of sound
-	double* v{ nullptr }; // kinematic viscosity
+	double* nu{ nullptr }; // kinematic viscosity
 	double* sumW0{ nullptr };
+	double* chi{ nullptr };//background pressure term
 
 	void alloc(int n)
 	{
@@ -162,8 +163,9 @@ struct fluid
 		CUDA_ALLOC(rho0, n, InitMode::ZERO);
 		CUDA_ALLOC(dRho, n, InitMode::ZERO);
 		CUDA_ALLOC(c, n, InitMode::ZERO);
-		CUDA_ALLOC(v, n, InitMode::ZERO);
+		CUDA_ALLOC(nu, n, InitMode::ZERO);
 		CUDA_ALLOC(sumW0, n, InitMode::ZERO);
+		CUDA_ALLOC(chi, n, InitMode::ZERO);
 	}
 
 	void release()
@@ -176,8 +178,9 @@ struct fluid
 		CUDA_FREE(rho0);
 		CUDA_FREE(dRho);
 		CUDA_FREE(c);
-		CUDA_FREE(v);
+		CUDA_FREE(nu);
 		CUDA_FREE(sumW0);
+		CUDA_FREE(chi);
 	}
 
 	void copy(const HostFluid& f)
@@ -190,7 +193,7 @@ struct fluid
 		cuda_copy(rho0, f.rho0.data(), nCopy, CopyDir::H2D);
 		cuda_copy(dRho, f.dRho.data(), nCopy, CopyDir::H2D);
 		cuda_copy(c, f.c.data(), nCopy, CopyDir::H2D);
-		cuda_copy(v, f.v.data(), nCopy, CopyDir::H2D);
+		cuda_copy(nu, f.nu.data(), nCopy, CopyDir::H2D);
 	}
 
 	void uploadState(HostFluid& f) const

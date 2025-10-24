@@ -21,7 +21,7 @@ void solverBase::initialize()
     cudaStatus = cudaSetDevice(gpuPara.deviceIndex);
     if (cudaStatus != cudaSuccess)
     {
-        std::cerr << "cudaSetDevice failed!  Do you have a CUDA-capable GPU installed?" << std::endl;
+        std::cout << "cudaSetDevice failed!  Do you have a CUDA-capable GPU installed?" << std::endl;
         exit(1);
     }
 
@@ -34,6 +34,7 @@ void solverBase::initialize()
     buildDeviceData();
     neighborSearch(dev, 0, 1, gpuPara.maxThreadsPerBlock);
     addBondData();
+    setSolidNormal();
 
     removeVtuFiles(dir);
     removeDatFiles(dir);
@@ -128,7 +129,7 @@ void solverBase::outputFluidVTU()
     /* helper lambdas replaced by small inline fns (C++03 safe) */
     {   /* scalar double array */
         out << "        <DataArray type=\"Float32\" Name=\"smooth length\" format=\"ascii\">\n";
-        for (size_t i = 0; i < N; ++i) {
+        for (int i = 0; i < N; ++i) {
             out << ' ' << hos.fluids.points.effectiveRadii[i];
         }
         out << "\n        </DataArray>\n";
@@ -151,13 +152,13 @@ void solverBase::outputFluidVTU()
     }
 
     out << "        <DataArray type=\"Float32\" Name=\"density\" format=\"ascii\">\n";
-    for (size_t i = 0; i < N; ++i) {
+    for (int i = 0; i < N; ++i) {
         out << ' ' << hos.fluids.rho0[i] + hos.fluids.dRho[i];
     }
     out << "\n        </DataArray>\n";
 
     out << "        <DataArray type=\"Float32\" Name=\"pressure\" format=\"ascii\">\n";
-    for (size_t i = 0; i < N; ++i) {
+    for (int i = 0; i < N; ++i) {
         out << ' ' << hos.fluids.dRho[i] * pow(hos.fluids.c[i], 2);
     }
     out << "\n        </DataArray>\n";
@@ -217,19 +218,19 @@ void solverBase::outputSolidVTU()
     out << "      <PointData Scalars=\"radius\">\n";
 
     out << "        <DataArray type=\"Float32\" Name=\"radius\" format=\"ascii\">\n";
-    for (size_t i = 0; i < N; ++i) out << ' ' << hos.solids.radius[i];
+    for (int i = 0; i < N; ++i) out << ' ' << hos.solids.radius[i];
     out << "\n        </DataArray>\n";
 
 	//out << "        <DataArray type=\"Float32\" Name=\"pressure\" format=\"ascii\">\n";
-	//for (size_t i = 0; i < N; ++i) out << ' ' << hos.solids.pressure[i];
+	//for (int i = 0; i < N; ++i) out << ' ' << hos.solids.pressure[i];
 	//out << "\n        </DataArray>\n";
 
     out << "        <DataArray type=\"Int32\" Name=\"clusterID\" format=\"ascii\">\n";
-    for (size_t i = 0; i < N; ++i) out << ' ' << hos.solids.clusterID[i];
+    for (int i = 0; i < N; ++i) out << ' ' << hos.solids.clusterID[i];
     out << "\n        </DataArray>\n";
 
 	out << "        <DataArray type=\"Int32\" Name=\"clumpID\" format=\"ascii\">\n";
-	for (size_t i = 0; i < N; ++i) out << ' ' << hos.solids.clumpID[i];
+	for (int i = 0; i < N; ++i) out << ' ' << hos.solids.clumpID[i];
 	out << "\n        </DataArray>\n";
 
     const struct {

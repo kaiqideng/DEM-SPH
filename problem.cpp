@@ -35,17 +35,58 @@ public:
 		
 		std::vector<double3> fp = getRegularPackedPoints(make_double3(0, 0, 0), make_double3(2 * H, 2 * H, H), spacing);
 		addFluid(fp, make_double3(0, 0, 0), 1.3 * spacing, 1000., 10 * 2 * sqrt(9.81 * H), 1.e-6);
-		std::vector<double3> sp0 = getRegularPackedPoints(make_double3(-3 * spacing, -3 * spacing, -3 * spacing), make_double3(5.4 * H + 6 * spacing, 2 * H + 6 * spacing, 3 * H + 6 * spacing), spacing);
+
+		double spacing1 = spacing;
+		std::vector<double3> sp0 = getRegularPackedPoints(make_double3(-3 * spacing1, -3 * spacing1, -3 * spacing1), make_double3(5.4 * H + 6 * spacing1, 2 * H + 6 * spacing1, 3 * H + 6 * spacing1), spacing1);
 		std::vector<double3> sp1;
 		for (const auto& p : sp0)
 		{
-			if (p.x < 0 || p.y < 0 || p.z < 0 || p.x > 5.4 * H || p.y > 2 * H) sp1.push_back(p);
+			if (p.x < 0. || p.y < 0. || p.z < 0. || p.x > 5.4 * H || p.y > 2 * H) sp1.push_back(p);
 		}
-		addSolid(sp1, make_double3(0, 0, 0), 0.5 * spacing, 0., 0);
+		addSPHSolidBoundary(sp1, 0.5 * spacing1);
 		double dt = 0.25 * 1.3 * spacing / (11 * 2 * sqrt(9.81 * H));
 		setSimulationParameterTimeStep(dt);
 		setSimulationParameterMaximumTime(5.);
 		setSimulationParameterNumFrames(100);
+	}
+
+	void outputData() override
+	{
+		outputFluidVTU();
+		outputSolidVTU();
+	}
+};
+
+class test1 :public solverBase
+{
+public:
+	test1() : solverBase() {}
+
+	void conditionInitialize() override
+	{
+		setProblemName("test1");
+		double spacing = 0.015;
+		double H = 0.3;
+		setDomain(make_double3(-3. * spacing, -3. * spacing, -3. * spacing), make_double3(5.4 * H + 6. * spacing, 2 * H + 6. * spacing, 3 * H + 6. * spacing));
+
+		std::vector<double3> fp = getRegularPackedPoints(make_double3(0, 0, 0), make_double3(2 * H, 2 * H, H), spacing);
+		addFluid(fp, make_double3(0, 0, 0), 1.3 * spacing, 1000., 10 * 2 * sqrt(9.81 * H), 1.e-6);
+
+		double spacing1 = spacing;
+		std::vector<double3> sp0 = getRegularPackedPoints(make_double3(- 3 * spacing1, - 3 * spacing1, - 3 * spacing1), make_double3(5.4 * H + 6 * spacing1, 2 * H + 6 * spacing1, 3 * H + 6 * spacing1), spacing1);
+		std::vector<double3> sp1;
+		for (const auto& p : sp0)
+		{
+			if (p.x < 0. || p.y < 0. || p.z < 0.|| p.x > 5.4 * H || p.y > 2 * H) sp1.push_back(p);
+		}
+		addSPHSolidBoundary(sp1, 0.5 * spacing1);
+		double dt = 0.25 * 1.3 * spacing / (11 * 2 * sqrt(9.81 * H));
+		setSimulationParameterTimeStep(dt);
+		setSimulationParameterMaximumTime(5.);
+		setSimulationParameterNumFrames(100);
+
+		std::vector<double3> sp2 = getRegularPackedPoints(make_double3(3.4 * H, 0.75 * H, 0), make_double3(0.5 * H, 0.5 * H, 3 * H), spacing1);
+		addSPHSolidBoundary(sp2, 0.5 * spacing1);
 	}
 
 	void outputData() override
@@ -137,7 +178,7 @@ public:
 		double mij = 4. / 3. * pi() * r_ball * r_ball * r_ball * 800.;
 		double dt = 0.2 * sqrt(mij / k);
 		double dt_f = 0.25 * 1.3 * spacing / (20 * sqrt(0.4 * 9.8));
-		int gap = int(dt / dt_f);
+		int gap = int(dt_f / dt);
 		if (gap < 1) gap = 1;
 		setSimulationParameterTimeStep(dt);
 		setFluidIntegrateGap(gap);
@@ -176,6 +217,6 @@ public:
 
 int main()
 {
-	damBreak problem;
+	test1 problem;
 	problem.solve();
 }

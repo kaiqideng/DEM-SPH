@@ -10,7 +10,7 @@ void data::addFluid(std::vector<double3> p, double3 velocity, double smoothLengt
         f.dyn.velocities[i] = velocity;
         f.rho0[i] = density;
         f.c[i] = soundSpeed;
-        f.v[i] = kinematicViscosity;
+        f.nu[i] = kinematicViscosity;
     }
 
     addFluidData(f);
@@ -33,6 +33,20 @@ void data::addSolid(std::vector<double3> p, double3 velocity, double radius, dou
         s.radius[i] = radius;
 		s.materialID[i] = materialID;
         if (density > 0) s.inverseMass[i] = 1. / (4. / 3. * pow(radius, 3) * pi() * density);
+    }
+
+    addSolidData(s);
+}
+
+void data::addSPHSolidBoundary(std::vector<double3> p, double radius)
+{
+
+    HostSolid s(int(p.size()));
+    for (size_t i = 0; i < p.size();i++)
+    {
+        s.points.position[i] = p[i];
+        s.points.effectiveRadii[i] = 2.6 * radius;
+        s.radius[i] = radius;
     }
 
     addSolidData(s);
@@ -297,6 +311,73 @@ void data::addBondData()
     }
 }
 
+void data::setSolidNormal()
+{
+    double3 minBound = dev.spatialGrids.minBound;
+    double3 cellSize = dev.spatialGrids.cellSize;
+    int3 gridSize = dev.spatialGrids.gridSize;
+    int nGrids = dev.spatialGrids.num;
+    std::vector<int> cellStart(nGrids, -1), cellEnd(nGrids, -1);
+    cuda_copy(cellStart.data(), dev.spatialGrids.cellStartSolid, nGrids, CopyDir::D2H);
+    cuda_copy(cellEnd.data(), dev.spatialGrids.cellEndSolid, nGrids, CopyDir::D2H);
+    std::vector<int> hashIndex(hos.solids.points.num, -1);
+    cuda_copy(hashIndex.data(), dev.solids.points.hash.index, hos.solids.points.num, CopyDir::D2H);
+    double h = *std::max_element(hos.fluids.points.effectiveRadii.begin(), hos.fluids.points.effectiveRadii.end());
+    for (int idxA = 0; idxA < hos.solids.points.num; idxA++)
+    {
+        double3 Theta = make_double3(0, 0, 0);
+
+        int clumpIDA = hos.solids.clumpID[idxA];
+        double invMassA = hos.solids.inverseMass[idxA];
+        double3 posA = hos.solids.points.position[idxA];
+        int3 gridPositionA = make_int3(int((posA.x - minBound.x) / cellSize.x), int((posA.y - minBound.y) / cellSize.y),
+            int((posA.z - minBound.z) / cellSize.z));
+        for (int zz = -1; zz <= 1; zz++)
+        {
+            for (int yy = -1; yy <= 1; yy++)
+            {
+                for (int xx = -1; xx <= 1; xx++)
+                {
+                    int3 gridPositionB = make_int3(gridPositionA.x + xx, gridPositionA.y + yy, gridPositionA.z + zz);
+                    int hashB = gridPositionB.z * gridSize.y * gridSize.x + gridPositionB.y * gridSize.x + gridPositionB.x;
+                    if (hashB < 0 || hashB >= nGrids)
+                    {
+                        continue;
+                    }
+                    int startIndex = cellStart[hashB];
+                    int endIndex = cellEnd[hashB];
+                    if (startIndex == 0xFFFFFFFF)
+                    {
+                        continue;
+                    }
+                    for (int k = startIndex; k < endIndex; k++)
+                    {
+                        int idxB = hashIndex[k];
+                        double3 posB = hos.solids.points.position[idxB];
+                        double3 rAB = posA - posB;
+                        if (length(rAB) > 2 * h) continue;
+                        if (invMassA <= 1.e-10 && hos.solids.inverseMass[idxB] <= 1.e-10)
+                        {
+                            double V_B = pow(h / 1.3, 3);
+                            double3 gradW = gradWendlandKernel3DForSolidNormal(rAB, h);
+                            Theta += -V_B * gradW;
+                        }
+                        else if (clumpIDA >= 0 && clumpIDA == hos.solids.clumpID[idxB])
+                        {
+                            double V_B = pow(2. * hos.solids.radius[idxB], 3.);
+                            double3 gradW = gradWendlandKernel3DForSolidNormal(rAB, h);
+                            Theta += -V_B * gradW;
+                        }
+                    }
+                }
+            }
+        }
+        if (length(Theta) > 1.e-10) hos.solids.normal[idxA] = normalize(Theta);
+        else hos.solids.normal[idxA] = make_double3(0., 0., 0.);
+    }
+    cuda_copy(dev.solids.normal, hos.solids.normal.data(), dev.solids.points.num, CopyDir::H2D);
+}
+
 void data::setSpatialGrids()
 {
     dev.spatialGrids.release();
@@ -328,7 +409,7 @@ void data::buildDeviceData()
     dev.fluid2Solid.copy(hos.fluid2Solid);
 	dev.solid2Solid.copy(hos.solid2Solid);
 	//dev.solidBond2Solid.copy(hos.solidBond2Solid);
-	dev.contactModels.copy(hos.contactModels);
+    dev.contactModels.copy(hos.contactModels);
 }
 
 

@@ -50,7 +50,7 @@
 
 #define MKDIR(path) _mkdir(path)    // returns 0 on success, -1 if already exists
 
-static int removeVtuFiles(const std::string& dir)
+static inline int removeVtuFiles(const std::string& dir)
 {
     std::string pattern = dir + "\\*.vtu";
     struct _finddata_t fdata;
@@ -66,7 +66,7 @@ static int removeVtuFiles(const std::string& dir)
     return removed;
 }
 
-static int removeDatFiles(const std::string& dir)
+static inline int removeDatFiles(const std::string& dir)
 {
     std::string pattern = dir + "\\*.dat";
     struct _finddata_t fdata;
@@ -89,19 +89,19 @@ static int removeDatFiles(const std::string& dir)
 
 #define MKDIR(path) mkdir(path, 0755)
 
-static bool hasVtuExt(const char* fname)
+static bool inline hasVtuExt(const char* fname)
 {
     const char* dot = strrchr(fname, '.');
     return dot && std::strcmp(dot, ".vtu") == 0;
 }
 
-static bool hasDatExt(const char* fname)
+static bool inline hasDatExt(const char* fname)
 {
     const char* dot = strrchr(fname, '.');
     return dot && std::strcmp(dot, ".dat") == 0;
 }
 
-static int removeVtuFiles(const std::string& dir)
+static int inline removeVtuFiles(const std::string& dir)
 {
     DIR* dp = opendir(dir.c_str());
     if (!dp) return 0;
@@ -120,7 +120,7 @@ static int removeVtuFiles(const std::string& dir)
     return removed;
 }
 
-static int removeDatFiles(const std::string& dir)
+static int inline removeDatFiles(const std::string& dir)
 {
     DIR* dp = opendir(dir.c_str());
     if (!dp) return 0;

@@ -125,7 +125,7 @@ protected:
         if (simPara.iStep > 0) dev.gravity = gravity;
     }
 
-    void setHertzianContactModel(size_t mat_i, size_t mat_j, double E, double G, double res, double k_r_k_s, double k_t_k_s, double mu_s, double mu_r, double mu_t)
+    void setHertzianContactModel(int mat_i, int mat_j, double E, double G, double res, double k_r_k_s, double k_t_k_s, double mu_s, double mu_r, double mu_t)
     {
 		int c_ij = hos.contactModels.getCombinedIndex(mat_i, mat_j);
 		if (c_ij < 0)
@@ -144,7 +144,7 @@ protected:
 		if (simPara.iStep > 0) dev.contactModels.copy(hos.contactModels);
     }
 
-	void setLinearContactModel(size_t mat_i, size_t mat_j, double k_n, double k_s, double k_r, double k_t, double d_n, double d_s, double d_r, double d_t, double mu_s, double mu_r, double mu_t)
+	void setLinearContactModel(int mat_i, int mat_j, double k_n, double k_s, double k_r, double k_t, double d_n, double d_s, double d_r, double d_t, double mu_s, double mu_r, double mu_t)
 	{
 		int c_ij = hos.contactModels.getCombinedIndex(mat_i, mat_j);
         if (c_ij < 0)
@@ -166,7 +166,7 @@ protected:
         if (simPara.iStep > 0) dev.contactModels.copy(hos.contactModels);
 	}
 
-	void setBondedContactModel(size_t mat_i, size_t mat_j, double E, double k_n_k_s, double gamma, double sigma_s, double C, double mu)
+	void setBondedContactModel(int mat_i, int mat_j, double E, double k_n_k_s, double gamma, double sigma_s, double C, double mu)
 	{
 		int c_ij = hos.contactModels.getCombinedIndex(mat_i, mat_j);
         if (c_ij < 0)
@@ -186,6 +186,8 @@ protected:
     void addFluid(std::vector<double3> p, double3 velocity, double smoothLength, double density, double soundSpeed, double kinematicViscosity);
 
     void addSolid(std::vector<double3> p, double3 velocity, double radius, double density, int materialID);
+
+    void addSPHSolidBoundary(std::vector<double3> p, double radius);
 
 	void addCluster(std::vector<double3> p, std::vector<double> radius, std::vector<double> density, double3 velocity, int materialID);
 
@@ -230,9 +232,24 @@ private:
 
     void addBondData();
 
+    void setSolidNormal();
+
     void setSpatialGrids();
 
     void buildDeviceData();
 
 	friend class solverBase;
+
+    double3 gradWendlandKernel3DForSolidNormal(const double3& rij, double h)
+    {
+        double r = length(rij);
+        if (r < 1.e-10 || r >= 2.0 * h) return make_double3(0, 0, 0);
+        double q = r / h;
+        double sigma = 21.0 / (16.0 * pi() * h * h * h);
+        double term = 1.0 - 0.5 * q;
+        double dW_dq = (-2.0 * pow(term, 3) * (1.0 + 2.0 * q) + 2.0 * pow(term, 4));
+        double dWdr = sigma * dW_dq / h;
+        double factor = dWdr / r;
+        return factor * rij;
+    }
 };
